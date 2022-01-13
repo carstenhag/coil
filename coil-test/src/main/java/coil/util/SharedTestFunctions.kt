@@ -17,9 +17,19 @@ import okio.Buffer
 import okio.buffer
 import okio.sink
 import okio.source
+import org.junit.Assume
 import java.io.File
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+
+/** Alias for [Assume.assumeTrue]. */
+fun assumeTrue(actual: Boolean, message: String = "") {
+    if (message.isBlank()) {
+        Assume.assumeTrue(actual)
+    } else {
+        Assume.assumeTrue(message, actual)
+    }
+}
 
 fun createMockWebServer(vararg images: String): MockWebServer {
     val server = MockWebServer()
@@ -38,7 +48,17 @@ fun MockWebServer.enqueueImage(image: String, headers: Headers = headersOf()): L
 fun Context.decodeBitmapAsset(
     fileName: String,
     options: BitmapFactory.Options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
-): Bitmap = checkNotNull(BitmapFactory.decodeStream(assets.open(fileName), null, options))
+): Bitmap {
+    // Retry multiple times as the emulator can be flaky.
+    var failures = 0
+    while (true) {
+        try {
+            return BitmapFactory.decodeStream(assets.open(fileName), null, options)!!
+        } catch (e: Exception) {
+            if (failures++ > 5) throw e
+        }
+    }
+}
 
 fun Context.copyAssetToFile(fileName: String): File {
     val source = assets.open(fileName).source()
